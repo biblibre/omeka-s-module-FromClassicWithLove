@@ -1,0 +1,126 @@
+<?php
+$form->prepare();
+$escapeHtml = $this->plugin('escapeHtml');
+?>
+
+<?php echo $this->pageTitle($this->translate('Map Omeka properties'), 1, $this->translate('FromClassicWithLove')); ?>
+
+<?php echo $this->form()->openTag($form); ?>
+<?= $this->formRow($form->get('csrf')); ?>
+<?= $this->formRow($form->get('files_source')); ?>
+<?= $this->formRow($form->get('domain_name')); ?>
+<?= $this->formRow($form->get('import_collections')); ?>
+<?php
+    try {
+        $importCollectionsTree = $form->get('import_collections_tree');
+        if ($importCollectionsTree) {
+            echo $this->formRow($importCollectionsTree);
+        }
+    }
+    catch (\Laminas\Form\Exception\InvalidArgumentException $e) {
+        // do nothing, it means import_collections_tree was not added to the form. @TODO make this cleaner in the future.
+    }
+?>
+<?php
+    try {
+        $update = $form->get('update');
+        if ($update) {
+            echo $this->formRow($update);
+        }
+        $updatedJobId = $form->get('updated_job_id');
+        if ($updatedJobId) {
+            echo $this->formRow($updatedJobId);
+        }
+    }
+    catch (\Laminas\Form\Exception\InvalidArgumentException $e) {
+        // do nothing, it means form is not an update. @TODO make this cleaner in the future.
+    }
+?>
+
+<fieldset id='page-actions'>
+    <button type="submit"><?php echo $this->translate('Next'); ?></button>
+</fieldset>
+
+<?php if (!empty($properties)): ?>
+<table class="tablesaw tablesaw-stack">
+    <thead>
+        <tr>
+            <th><?= $this->translate('Omeka vocabulary name'); ?></th>
+            <th><?= $this->translate('Omeka property'); ?></th>
+            <th><?= $this->translate('Omeka-S property'); ?></th>
+            <th><?= $this->translate('Keep HTML?'); ?></th>
+            <th><?= $this->translate('Map URIs to imported resources?'); ?></th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($properties as $index => $property): ?>
+            <tr>
+                <td><?= $this->translate($this->escapeHtml($property['element_set_name'])); ?></td>
+                <td><?= $this->translate($this->escapeHtml($property['element_name'])); ?></td>
+                <td>
+                    <?= $this->formElement($form->get('elements_properties[' . $property['element_id'] . ']')); ?>
+                </td>
+                <td>
+                    <?= $this->formElement($form->get('preserve_html[' . $property['element_id'] . ']')); ?>
+                </td>
+                <td>
+                    <?= $this->formElement($form->get('transform_uris[' . $property['element_id'] . ']')); ?>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+<?php endif; ?>
+
+<?php if (!empty($resourceClasses)): ?>
+<table class="tablesaw tablesaw-stack">
+    <thead>
+        <tr>
+            <th><?= $this->translate('Omeka class name'); ?></th>
+            <th><?= $this->translate('Omeka class description'); ?></th>
+            <th><?= $this->translate('Omeka-S class'); ?></th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($resourceClasses as $index => $resourceClass): ?>
+        <tr>
+            <td><?= $this->escapeHtml($resourceClass['name']); ?></td>
+            <td><?= $this->escapeHtml($resourceClass['description']); ?></td>
+            <td>
+                <?= $this->formElement($form->get('types_classes[' . $resourceClass['id'] . ']')); ?>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+<?php endif; ?>
+
+<?php
+    try {
+        $tagProperty = $form->get('tag_property');
+        if ($tagProperty) {
+            echo '<h2>' . $this->translate('Tags') . '</h2>';
+            echo $this->formRow($tagProperty);
+        }
+    }
+    catch (\Laminas\Form\Exception\InvalidArgumentException $e) {
+        // do nothing, it means tag_property was not added to the form. @TODO make this cleaner in the future.
+    }
+?>
+
+<?php echo $this->form()->closeTag($form); ?>
+
+<script>
+(function ($) {
+  $(document).ready(function () {
+    // Activate Chosen
+    const $select = $('select').chosen({
+      allow_single_deselect: true,
+      width: '100%',
+      search_contains: true,
+      placeholder_text_multiple: '<?php echo $this->translate('Do not import'); ?>',
+      placeholder_text_single: '<?php echo $this->translate('Do not import'); ?>'
+    });
+  });
+})(jQuery);
+</script>

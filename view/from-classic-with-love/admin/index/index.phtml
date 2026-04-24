@@ -1,0 +1,33 @@
+<?php
+$form->prepare();
+$escapeHtml = $this->plugin('escapeHtml');
+?>
+
+<?php echo $this->pageTitle(
+    empty($update) ?
+        $this->translate('Import from Omeka Classic') :
+        $this->translate('Update from Omeka Classic'),
+    1, $this->translate('FromClassicWithLove')); ?>
+
+<div class="messages">
+    <div class="success">
+        <h3><?php echo $this->translate('Before you proceed'); ?></h3>
+        <p>
+            <?php echo $this->translate('The SQL dump from your Omeka Classic instance must be imported manually into the database configured under <code>fromclassicwithlove.dump_database</code> in <code>config/local.config.php</code>.'); ?>
+        </p>
+        <p><?php echo $this->translate('You can do so with the following command:'); ?></p>
+        <pre>mysql -u &lt;username&gt; -p&lt;password&gt; -h &lt;hostname&gt; &lt;database&gt; &lt; /path/to/dump.sql</pre>
+        <p>
+            <?php echo $this->translate('Once the dump is loaded in the temporary database, fill in the fields below and click <strong>Next</strong>.'); ?>
+        </p>
+    </div>
+</div>
+
+<?php echo $this->form()->openTag($form); ?>
+<?php echo $this->formCollection($form, false); ?>
+
+<fieldset id='page-actions'>
+    <button type="submit"><?php echo $this->translate('Next'); ?></button>
+</fieldset>
+
+<?php echo $this->form()->closeTag($form); ?>
