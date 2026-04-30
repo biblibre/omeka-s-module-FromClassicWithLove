@@ -119,8 +119,19 @@ class ImportFromDumpJob extends AbstractJob
 
         try {
             $this->importResourcesFromDump($dumpManager, $properties, $resourceClasses);
-        } catch (\Exception $e) {
-            $logger->err(sprintf("Error: %s", $e->getMessage()));
+        } catch (\Throwable $e) {
+            $message = $e->getMessage();
+            if ($e instanceof \Omeka\Api\Exception\ValidationException) {
+                $errors = $e->getErrorStore()->getErrors();
+                $message = json_encode($errors, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            }
+            $logger->err(sprintf(
+                "Error: %s (%s) in %s:%d",
+                $message,
+                get_class($e),
+                $e->getFile(),
+                $e->getLine()
+            ));
             $this->hasErr = true;
         }
 
