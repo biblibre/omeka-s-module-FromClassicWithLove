@@ -42,6 +42,11 @@ class ImportFromDumpJob extends AbstractJob
      */
     protected $updatedResources = ['items' => [], 'item_sets' => []];
 
+    /**
+     * @var array
+     */
+    protected $missingFiles = [];
+
     public function perform()
     {
         $logger = $this->getServiceLocator()->get('Omeka\Logger');
@@ -653,11 +658,16 @@ class ImportFromDumpJob extends AbstractJob
             $mediaEntries = [];
             if (!empty($this->getArg('files_source'))) {
                 foreach ($files as $file) {
+                    $filePath = $this->getArg('files_source') . $file['filename'];
+                    if (!file_exists($filePath)) {
+                        $this->missingFiles[] = $filePath;
+                        continue;
+                    }
                     $mediaEntries[] = [
                         'o:is_public' => '1',
                         'o:ingester' => 'fromclassicwithlove_local',
                         'original_file_action' => 'keep',
-                        'ingest_filename' => $this->getArg('files_source') . $file['filename'],
+                        'ingest_filename' => $filePath,
                         'original_filename' => $file['original_filename'],
                     ];
                 }
@@ -758,6 +768,13 @@ class ImportFromDumpJob extends AbstractJob
 
         if (!empty($this->getArg('files_source'))) {
             $logger->info('Media succesfully imported.');
+        }
+        if (!empty($this->missingFiles)) {
+            $logger->warn(sprintf(
+                "%d missing file(s):\n- %s",
+                count($this->missingFiles),
+                implode("\n- ", $this->missingFiles)
+            ));
         }
         $logger->info('Items successfully imported.');
     }
