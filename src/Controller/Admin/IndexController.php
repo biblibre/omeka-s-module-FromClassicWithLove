@@ -166,35 +166,26 @@ class IndexController extends AbstractActionController
                 $jobArgs = $updatedJob[0]->job()->args();
 
                 $savedData = [];
-                if (!empty($jobArgs['elements_properties'])) {
-                    foreach ($jobArgs['elements_properties'] as $elementId => $propertyId) {
-                        $savedData['elements_properties[' . $elementId . ']'] = $propertyId;
-                    }
+
+                foreach ($properties as $property) {
+                    $elementId = $property['element_id'];
+                    $savedData['elements_properties[' . $elementId . ']'] =
+                        $jobArgs['elements_properties'][$elementId] ?? [];
+                    $savedData['preserve_html[' . $elementId . ']'] =
+                        $jobArgs['preserve_html'][$elementId] ?? null;
+                    $savedData['transform_uris[' . $elementId . ']'] =
+                        $jobArgs['transform_uris'][$elementId] ?? null;
                 }
-                if (!empty($jobArgs['preserve_html'])) {
-                    foreach ($jobArgs['preserve_html'] as $elementId => $val) {
-                        $savedData['preserve_html[' . $elementId . ']'] = $val;
-                    }
+
+                foreach ($resourceClasses as $resourceClass) {
+                    $typeId = $resourceClass['id'];
+                    $savedData['types_classes[' . $typeId . ']'] =
+                        $jobArgs['types_classes'][$typeId] ?? null;
                 }
-                if (!empty($jobArgs['transform_uris'])) {
-                    foreach ($jobArgs['transform_uris'] as $elementId => $val) {
-                        $savedData['transform_uris[' . $elementId . ']'] = $val;
-                    }
-                }
-                if (!empty($jobArgs['types_classes'])) {
-                    foreach ($jobArgs['types_classes'] as $typeId => $classId) {
-                        $savedData['types_classes[' . $typeId . ']'] = $classId;
-                    }
-                }
-                if (isset($jobArgs['import_collections'])) {
-                    $savedData['import_collections'] = $jobArgs['import_collections'];
-                }
-                if (isset($jobArgs['import_collections_tree'])) {
-                    $savedData['import_collections_tree'] = $jobArgs['import_collections_tree'];
-                }
-                if (isset($jobArgs['tag_property'])) {
-                    $savedData['tag_property'] = $jobArgs['tag_property'];
-                }
+
+                $savedData['import_collections'] = $jobArgs['import_collections'] ?? null;
+                $savedData['import_collections_tree'] = $jobArgs['import_collections_tree'] ?? null;
+                $savedData['tag_property'] = $jobArgs['tag_property'] ?? null;
 
                 $form->setData($savedData);
             }
