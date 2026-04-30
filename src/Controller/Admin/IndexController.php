@@ -58,6 +58,7 @@ class IndexController extends AbstractActionController
         $form->get('files_source')->setValue($jobArgs['files_source'] ?? '');
         $form->get('domain_name')->setValue($jobArgs['domain_name'] ?? '');
 
+        $view->setVariable('previousJobArgs', $jobArgs);
         $view->setVariable('update', true);
         $view->setVariable('form', $form);
 
@@ -154,6 +155,48 @@ class IndexController extends AbstractActionController
             if (in_array($p . 'tags', $table)) {
                 $form->addTagMapping($this->serviceLocator->get('Omeka\ApiManager'));
                 break;
+            }
+        }
+
+        if (!empty($post['updated_job_id'])) {
+            $updatedJob = $this->serviceLocator->get('Omeka\ApiManager')
+                ->search('fromclassicwithlove_imports', ['job_id' => $post['updated_job_id']])->getContent();
+
+            if (!empty($updatedJob) && !empty($updatedJob[0])) {
+                $jobArgs = $updatedJob[0]->job()->args();
+
+                $savedData = [];
+                if (!empty($jobArgs['elements_properties'])) {
+                    foreach ($jobArgs['elements_properties'] as $elementId => $propertyId) {
+                        $savedData['elements_properties[' . $elementId . ']'] = $propertyId;
+                    }
+                }
+                if (!empty($jobArgs['preserve_html'])) {
+                    foreach ($jobArgs['preserve_html'] as $elementId => $val) {
+                        $savedData['preserve_html[' . $elementId . ']'] = $val;
+                    }
+                }
+                if (!empty($jobArgs['transform_uris'])) {
+                    foreach ($jobArgs['transform_uris'] as $elementId => $val) {
+                        $savedData['transform_uris[' . $elementId . ']'] = $val;
+                    }
+                }
+                if (!empty($jobArgs['types_classes'])) {
+                    foreach ($jobArgs['types_classes'] as $typeId => $classId) {
+                        $savedData['types_classes[' . $typeId . ']'] = $classId;
+                    }
+                }
+                if (isset($jobArgs['import_collections'])) {
+                    $savedData['import_collections'] = $jobArgs['import_collections'];
+                }
+                if (isset($jobArgs['import_collections_tree'])) {
+                    $savedData['import_collections_tree'] = $jobArgs['import_collections_tree'];
+                }
+                if (isset($jobArgs['tag_property'])) {
+                    $savedData['tag_property'] = $jobArgs['tag_property'];
+                }
+
+                $form->setData($savedData);
             }
         }
 
