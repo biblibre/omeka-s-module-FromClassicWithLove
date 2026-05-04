@@ -284,7 +284,7 @@ class IndexController extends AbstractActionController
             if ($post['files_source'][strlen($post['files_source']) - 1] != '/') {
                 $post['files_source'] = $post['files_source'] . '/';
             }
-            if (!is_dir($post['files_source'])) {
+            if (!file_exists($post['files_source'])) {
                 $this->messenger()->addError('Given media folders does not exist on disk.'); // @translate
                 return $this->redirect()->toRoute('admin/fromclassicwithlove');
             }

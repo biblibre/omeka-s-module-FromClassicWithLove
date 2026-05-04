@@ -146,17 +146,15 @@ class Local implements IngesterInterface
 
     public function verifyFile(string $filepath)
     {
-        $fileinfo = new \SplFileInfo($filepath);
-        $realPath = $fileinfo->getRealPath();
-        if (false === $realPath) {
-            throw new \Exception('File does not exist');
+        if (!is_file($filepath)) {
+            throw new \Exception('File does not exist or is not a regular file');
         }
 
-        if (!$fileinfo->isFile() || !$fileinfo->isReadable()) {
-            throw new \Exception('File is not a regular file or is not readable');
+        if (!is_readable($filepath)) {
+            throw new \Exception('File is not readable');
         }
 
-        return $realPath;
+        return $filepath;
     }
 
     protected function dealWithOriginalFile($realPath, $data)
