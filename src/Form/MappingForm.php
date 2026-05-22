@@ -226,6 +226,17 @@ class MappingForm extends Form
         ]);
     }
 
+    public function addGeolocationCheckbox()
+    {
+        $this->add([
+            'name' => 'import_mapping',
+            'type' => OptionalCheckbox::class,
+            'options' => [
+                'label' => 'Import geolocations (from Geolocation classic module) to Mapping module?', // @translate
+            ],
+        ]);
+    }
+
     public function addTagMapping($api = null)
     {
         $this->add([

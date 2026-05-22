@@ -159,6 +159,10 @@ class ImportFromDumpJob extends AbstractJob
 
         $this->importUrisFromDump();
 
+        if ($this->getArg('import_mapping') == '1') {
+            $this->importMappingFromDump($dumpManager);
+        }
+
         if ($this->getArg('update') == '1') {
             $this->cleanMissingResources();
         }
@@ -196,6 +200,83 @@ class ImportFromDumpJob extends AbstractJob
         }
 
         $logger->info('Deleted resources not present in update database anymore.');
+    }
+
+    protected function importMappingFromDump($dumpManager): void
+    {
+        $logger = $this->getServiceLocator()->get('Omeka\Logger');
+        $p = $dumpManager->getTablePrefix();
+        $dumpConn = $dumpManager->getConn();
+        $api = $this->getServiceLocator()->get('Omeka\ApiManager');
+        $jobId = ($this->getArg('update') == '1') ? $this->updatedJobId : $this->job->getId();
+
+        if (!$dumpManager->hasColumn($p . 'locations', 'latitude')) {
+            $logger->warn('Geolocation table not found in dump, skipping mapping import.');
+            return;
+        }
+
+        $hasAddress = $dumpManager->hasColumn($p . 'locations', 'address');
+        $stmt = $dumpConn->executeQuery(sprintf(
+            'SELECT item_id, latitude, longitude%s FROM %slocations',
+            $hasAddress ? ', address' : '',
+            $p
+        ));
+        $geolocations = $stmt->fetchAllAssociative();
+
+        $count = 0;
+        foreach ($geolocations as $geo) {
+            if ($this->shouldStop()) {
+                $logger->warn('Import stopped by user during mapping import.');
+                return;
+            }
+
+            if ($geo['latitude'] === null || $geo['longitude'] === null) {
+                continue;
+            }
+
+            $matchingResource = $api->search(
+                'fromclassicwithlove_resource_maps',
+                [
+                    'mapped_resource_name' => 'item',
+                    'classic_resource_id' => $geo['item_id'],
+                    'job_id' => $jobId,
+                ]
+            )->getContent();
+
+            if (empty($matchingResource)) {
+                continue;
+            }
+
+            $omekaItemId = $matchingResource[0]->resource()->id();
+
+            if ($this->getArg('update') == '1') {
+                $existingFeatures = $api->search('mapping_features', ['item_id' => $omekaItemId])->getContent();
+                foreach ($existingFeatures as $feature) {
+                    $api->delete('mapping_features', $feature->id());
+                }
+                $existingMappings = $api->search('mappings', ['item_id' => $omekaItemId])->getContent();
+                foreach ($existingMappings as $mapping) {
+                    $api->delete('mappings', $mapping->id());
+                }
+            }
+
+            $api->create('mappings', [
+                'o:item' => ['o:id' => $omekaItemId],
+            ]);
+
+            $label = isset($geo['address']) && $geo['address'] !== '' ? $geo['address'] : null;
+            $api->create('mapping_features', [
+                'o:item' => ['o:id' => $omekaItemId],
+                'o:label' => $label,
+                'o-module-mapping:geography-type' => 'point',
+                'o-module-mapping:geography-coordinates' => [(float) $geo['longitude'], (float) $geo['latitude']],
+            ]);
+
+            $count++;
+        }
+
+        $this->stats['mapping_features'] = $count;
+        $logger->info(sprintf('%d geolocation(s) imported to Mapping module.', $count));
     }
 
     protected function importCollectionsTreeFromDump($dumpManager)

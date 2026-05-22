@@ -158,6 +158,14 @@ class IndexController extends AbstractActionController
             }
         }
 
+        if ($dumpManager->hasColumn($p . 'locations', 'latitude')) {
+            if ($this->checkModuleActiveVersion('Mapping')) {
+                $form->addGeolocationCheckbox();
+            } else {
+                $this->messenger()->addWarning('Dump database has geolocation data but the Mapping module is not installed in Omeka S. Geolocations will not be imported.'); // @translate
+            }
+        }
+
         if (!empty($post['updated_job_id'])) {
             $updatedJob = $this->serviceLocator->get('Omeka\ApiManager')
                 ->search('fromclassicwithlove_imports', ['job_id' => $post['updated_job_id']])->getContent();
@@ -186,6 +194,7 @@ class IndexController extends AbstractActionController
                 $savedData['import_collections'] = $jobArgs['import_collections'] ?? null;
                 $savedData['import_collections_tree'] = $jobArgs['import_collections_tree'] ?? null;
                 $savedData['tag_property'] = $jobArgs['tag_property'] ?? null;
+                $savedData['import_mapping'] = $jobArgs['import_mapping'] ?? null;
 
                 $form->setData($savedData);
             }
@@ -269,6 +278,12 @@ class IndexController extends AbstractActionController
             if (in_array($p . 'tags', $table)) {
                 $form->addTagMapping();
                 break;
+            }
+        }
+
+        if ($dumpManager->hasColumn($p . 'locations', 'latitude')) {
+            if ($this->checkModuleActiveVersion('Mapping')) {
+                $form->addGeolocationCheckbox();
             }
         }
 

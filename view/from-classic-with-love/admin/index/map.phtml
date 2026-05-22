@@ -23,6 +23,17 @@ $escapeHtml = $this->plugin('escapeHtml');
 ?>
 <?php
     try {
+        $importMapping = $form->get('import_mapping');
+        if ($importMapping) {
+            echo $this->formRow($importMapping);
+        }
+    }
+    catch (\Laminas\Form\Exception\InvalidArgumentException $e) {
+        // do nothing, it means import_mapping was not added to the form.
+    }
+?>
+<?php
+    try {
         $update = $form->get('update');
         if ($update) {
             echo $this->formRow($update);
