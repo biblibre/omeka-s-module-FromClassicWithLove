@@ -230,7 +230,21 @@ class ImportFromDumpJob extends AbstractJob
                 return;
             }
 
-            if ($geo['latitude'] === null || $geo['longitude'] === null) {
+            $lat = $geo['latitude'];
+            $lon = $geo['longitude'];
+
+            if ($lat === null || $lon === null) {
+                continue;
+            }
+
+            $lat = (float) $lat;
+            $lon = (float) $lon;
+
+            if ($lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
+                $logger->warn(sprintf(
+                    'Skipping item_id %d: invalid coordinates (lat=%s, lon=%s).',
+                    $geo['item_id'], $lat, $lon
+                ));
                 continue;
             }
 
@@ -269,7 +283,7 @@ class ImportFromDumpJob extends AbstractJob
                 'o:item' => ['o:id' => $omekaItemId],
                 'o:label' => $label,
                 'o-module-mapping:geography-type' => 'point',
-                'o-module-mapping:geography-coordinates' => [(float) $geo['longitude'], (float) $geo['latitude']],
+                'o-module-mapping:geography-coordinates' => [$lon, $lat],
             ]);
 
             $count++;
@@ -779,8 +793,7 @@ class ImportFromDumpJob extends AbstractJob
                         unset($itemData['o:item_set']);
                     }
 
-                    $this->getServiceLocator()->get('Omeka\ApiManager')->update('items', $matchingItem->id(),
-                        $itemData);
+                    $this->getServiceLocator()->get('Omeka\ApiManager')->update('items', $matchingItem->id(), $itemData);
 
                     if (!empty($mediaEntries)) {
                         $api = $this->getServiceLocator()->get('Omeka\ApiManager');
