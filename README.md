@@ -1,7 +1,7 @@
 FromClassicWithLove (module for Omeka S)
 ===============================
 
-[FromClassicWithLove] (or **FCWL** for short) is a module for [Omeka S] and will allow an administrator to import item sets, items, media and tags from an Omeka Classic SQL dump.
+[FromClassicWithLove] (or **FCWL** for short) is a module for [Omeka S] and will allow an administrator to import item sets, items, media, tags and geolocations from an Omeka Classic SQL dump.
 
 Installation
 ------------
@@ -48,6 +48,7 @@ On the mapping screen:
 
 - **Import collections** — check this to import Omeka Classic collections as Omeka-S item sets.
 - **Import Item sets tree** — only appears if the dump contains CollectionsTree data and the [ItemSetsTree](https://github.com/biblibre/omeka-s-module-ItemSetsTree) module is active. Imports the collection hierarchy.
+- **Import geolocations to Mapping module** — only appears if the dump contains geolocation data (Omeka Classic `Geolocation` plugin table) and the [Mapping](https://omeka.org/s/modules/Mapping/) module is active. Imports each geolocation as a point feature. Coordinates outside valid ranges (latitude -90/+90, longitude -180/+180) are skipped with a warning.
 - **Update** — see the *Updating a previous import* section below.
 
 For each property, you may select **Clean HTML** to strip HTML tags from the property values. For example, if `dcterms:title` is `<strong>Hello!</strong>`, "Clean HTML" will only keep `Hello!`.
