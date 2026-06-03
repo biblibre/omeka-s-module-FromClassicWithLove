@@ -632,6 +632,21 @@ class ImportFromDumpJob extends AbstractJob
             $stmt = $dumpConn->executeQuery($sql, [$item['id']]);
             $propertyValues = $stmt->fetchAllAssociative();
 
+            // Also collect element_texts attached to files (e.g. PDF Text from the PDFText plugin),
+            // so they can be mapped to item-level properties like bibo:content.
+            $filePropSql = sprintf(
+                'SELECT %1$selement_texts.element_id, %1$selement_texts.text, %1$selements.name
+                FROM %1$sfiles
+                    LEFT JOIN %1$selement_texts ON %1$selement_texts.record_id = %1$sfiles.id
+                        AND %1$selement_texts.record_type = \'File\'
+                    LEFT JOIN %1$selements ON %1$selements.id = %1$selement_texts.element_id
+                WHERE %1$sfiles.item_id = ?
+                AND %1$selement_texts.id IS NOT NULL',
+                $p
+            );
+            $fileStmt = $dumpConn->executeQuery($filePropSql, [$item['id']]);
+            $propertyValues = array_merge($propertyValues, $fileStmt->fetchAllAssociative());
+
             $altTextCol = $hasAltText ? ', %1$sfiles.alt_text' : '';
             $sql = sprintf(
                 'SELECT %1$sfiles.id, %1$sfiles.mime_type, %1$sfiles.filename,
