@@ -836,10 +836,16 @@ class ImportFromDumpJob extends AbstractJob
                     if (!empty($mediaEntries)) {
                         $api = $this->getServiceLocator()->get('Omeka\ApiManager');
 
-                        // Index existing Omeka S media by original_filename (o:source).
+                        // Index existing Omeka S media by source (o:source = original_filename).
+                        // Query directly to avoid loading full representations with property values.
+                        $omekaConn = $this->getServiceLocator()->get('Omeka\Connection');
                         $existingMedia = [];
-                        foreach ($matchingItem->media() as $media) {
-                            $existingMedia[$media->source()] = $media;
+                        $rows = $omekaConn->fetchAllAssociative(
+                            'SELECT id, source FROM media WHERE item_id = ?',
+                            [$matchingItem->id()]
+                        );
+                        foreach ($rows as $row) {
+                            $existingMedia[$row['source']] = $row['id'];
                         }
 
                         // Index dump files by original_filename.
@@ -866,7 +872,7 @@ class ImportFromDumpJob extends AbstractJob
                                 $mediaUpdateData = array_diff_key($entry, array_flip($ingestKeys));
                                 if (!empty($mediaUpdateData)) {
                                     try {
-                                        $api->update('media', $existingMedia[$originalFilename]->id(), $mediaUpdateData, [], ['isPartial' => true, 'collectionAction' => 'replace']);
+                                        $api->update('media', $existingMedia[$originalFilename], $mediaUpdateData, [], ['isPartial' => true, 'collectionAction' => 'replace']);
                                     } catch (\Exception $e) {
                                         $logger->warn(sprintf('Error updating media "%s": %s.', $originalFilename, $e->getMessage()));
                                     }
@@ -878,7 +884,7 @@ class ImportFromDumpJob extends AbstractJob
                         foreach ($existingMedia as $originalFilename => $media) {
                             if (!isset($dumpMedia[$originalFilename])) {
                                 try {
-                                    $api->delete('media', $media->id());
+                                    $api->delete('media', $media);
                                 } catch (\Exception $e) {
                                     $logger->warn(sprintf('Error deleting media "%s": %s.', $originalFilename, $e->getMessage()));
                                 }
