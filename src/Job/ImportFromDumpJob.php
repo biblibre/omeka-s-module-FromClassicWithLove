@@ -632,20 +632,6 @@ class ImportFromDumpJob extends AbstractJob
             $stmt = $dumpConn->executeQuery($sql, [$item['id']]);
             $propertyValues = $stmt->fetchAllAssociative();
 
-            // Also collect element_texts attached to files (e.g. PDF Text from the PDFText plugin),
-            // so they can be mapped to item-level properties like bibo:content.
-            $filePropSql = sprintf(
-                'SELECT %1$selement_texts.element_id, %1$selement_texts.text, %1$selements.name
-                FROM %1$sfiles
-                    LEFT JOIN %1$selement_texts ON %1$selement_texts.record_id = %1$sfiles.id
-                        AND %1$selement_texts.record_type = \'File\'
-                    LEFT JOIN %1$selements ON %1$selements.id = %1$selement_texts.element_id
-                WHERE %1$sfiles.item_id = ?
-                AND %1$selement_texts.id IS NOT NULL',
-                $p
-            );
-            $fileStmt = $dumpConn->executeQuery($filePropSql, [$item['id']]);
-            $propertyValues = array_merge($propertyValues, $fileStmt->fetchAllAssociative());
 
             $altTextCol = $hasAltText ? ', %1$sfiles.alt_text' : '';
             $sql = sprintf(
@@ -765,6 +751,16 @@ class ImportFromDumpJob extends AbstractJob
                 }
             }
 
+            $fileElementTextsSql = sprintf(
+                'SELECT %1$selement_texts.element_id, %1$selement_texts.text
+                FROM %1$selement_texts
+                    LEFT JOIN %1$selements ON %1$selements.id = %1$selement_texts.element_id
+                WHERE %1$selement_texts.record_type = \'File\'
+                AND %1$selement_texts.record_id = ?
+                AND %1$selement_texts.text IS NOT NULL',
+                $p
+            );
+
             $mediaEntries = [];
             if (!empty($this->getArg('files_source'))) {
                 foreach ($files as $file) {
@@ -773,13 +769,40 @@ class ImportFromDumpJob extends AbstractJob
                         $this->missingFiles[] = $filePath;
                         continue;
                     }
-                    $mediaEntries[] = [
+                    $mediaEntry = [
                         'o:is_public' => '1',
                         'o:ingester' => 'fromclassicwithlove_local',
                         'original_file_action' => 'keep',
                         'ingest_filename' => $filePath,
                         'original_filename' => $file['original_filename'],
                     ];
+
+                    // Map file-level element_texts (e.g. PDF Text) as media properties.
+                    $fileEtStmt = $dumpConn->executeQuery($fileElementTextsSql, [$file['id']]);
+                    foreach ($fileEtStmt->fetchAllAssociative() as $fileProperty) {
+                        if (empty($this->getArg('elements_properties')[$fileProperty['element_id']])) {
+                            continue;
+                        }
+                        $propertyIds = $this->getArg('elements_properties')[$fileProperty['element_id']];
+                        if (!is_array($propertyIds)) {
+                            $propertyIds = [$propertyIds];
+                        }
+                        $preserveHtml = ($this->getArg('preserve_html') ?? [])[$fileProperty['element_id']] == '1';
+                        $text = $preserveHtml ? $fileProperty['text'] : $this->cleanTextFromHTML($fileProperty['text']);
+                        foreach ($propertyIds as $propertyId) {
+                            $term = $this->getPropertyTerm($propertyId);
+                            $mediaEntry[$term][] = [
+                                'property_id' => intval($propertyId),
+                                'type' => 'literal',
+                                'is_public' => '1',
+                                '@annotation' => null,
+                                '@language' => '',
+                                '@value' => $text,
+                            ];
+                        }
+                    }
+
+                    $mediaEntries[] = $mediaEntry;
                 }
             }
 
@@ -825,7 +848,10 @@ class ImportFromDumpJob extends AbstractJob
                             $dumpMedia[$entry['original_filename']] = $entry;
                         }
 
+                        $ingestKeys = ['o:ingester', 'original_file_action', 'ingest_filename', 'original_filename'];
+
                         // Create media present in dump but missing in Omeka S.
+                        // Update properties of media present in both.
                         foreach ($dumpMedia as $originalFilename => $entry) {
                             if (!isset($existingMedia[$originalFilename])) {
                                 try {
@@ -835,6 +861,15 @@ class ImportFromDumpJob extends AbstractJob
                                     $this->stats['media'] = ($this->stats['media'] ?? 0) + 1;
                                 } catch (\Exception $e) {
                                     $logger->warn(sprintf('Error creating media "%s": %s.', $originalFilename, $e->getMessage()));
+                                }
+                            } else {
+                                $mediaUpdateData = array_diff_key($entry, array_flip($ingestKeys));
+                                if (!empty($mediaUpdateData)) {
+                                    try {
+                                        $api->update('media', $existingMedia[$originalFilename]->id(), $mediaUpdateData, [], ['isPartial' => true, 'collectionAction' => 'replace']);
+                                    } catch (\Exception $e) {
+                                        $logger->warn(sprintf('Error updating media "%s": %s.', $originalFilename, $e->getMessage()));
+                                    }
                                 }
                             }
                         }
