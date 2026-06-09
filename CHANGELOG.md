@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [X.X.X] - Unreleased
 
 Fix OCR values to be set on original resource type
+Show metas from medias/files stats during import
 
 ## [0.3.0] - 2026-06-03
 

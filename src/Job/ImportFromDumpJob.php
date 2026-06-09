@@ -1063,13 +1063,25 @@ class ImportFromDumpJob extends AbstractJob
                 'SELECT COUNT(*) FROM %sfiles WHERE stored = 1', $p
             ))->fetchOne();
 
-            $properties = $conn->executeQuery(sprintf(
-                'SELECT es.name AS set_name, e.name AS elem_name, COUNT(et.id) AS cnt
+            $itemProperties = $conn->executeQuery(sprintf(
+                "SELECT es.name AS set_name, e.name AS elem_name, COUNT(et.id) AS cnt
                 FROM %selement_texts et
                 LEFT JOIN %selements e ON e.id = et.element_id
                 LEFT JOIN %selement_sets es ON es.id = e.element_set_id
+                WHERE et.record_type = 'Item'
                 GROUP BY e.id
-                ORDER BY es.name, e.name',
+                ORDER BY es.name, e.name",
+                $p, $p, $p
+            ))->fetchAllAssociative();
+
+            $fileProperties = $conn->executeQuery(sprintf(
+                "SELECT es.name AS set_name, e.name AS elem_name, COUNT(et.id) AS cnt
+                FROM %selement_texts et
+                LEFT JOIN %selements e ON e.id = et.element_id
+                LEFT JOIN %selement_sets es ON es.id = e.element_set_id
+                WHERE et.record_type = 'File'
+                GROUP BY e.id
+                ORDER BY es.name, e.name",
                 $p, $p, $p
             ))->fetchAllAssociative();
 
@@ -1084,9 +1096,18 @@ class ImportFromDumpJob extends AbstractJob
                 $totalMedia
             ));
 
-            $logger->info('[Classic] Properties used:');
-            foreach ($properties as $prop) {
-                $logger->info(sprintf('  %s > %s (%d)', $prop['set_name'], $prop['elem_name'], $prop['cnt']));
+            if ($itemProperties) {
+                $logger->info('[Classic] Item properties used:');
+                foreach ($itemProperties as $prop) {
+                    $logger->info(sprintf('  %s > %s (%d)', $prop['set_name'], $prop['elem_name'], $prop['cnt']));
+                }
+            }
+
+            if ($fileProperties) {
+                $logger->info('[Classic] File properties used:');
+                foreach ($fileProperties as $prop) {
+                    $logger->info(sprintf('  %s > %s (%d)', $prop['set_name'], $prop['elem_name'], $prop['cnt']));
+                }
             }
         } catch (\Exception $e) {
             $logger->warn('Could not collect Classic stats: ' . $e->getMessage());
@@ -1154,6 +1175,7 @@ class ImportFromDumpJob extends AbstractJob
             }
 
             $propRows = [];
+            $mediaPropRows = [];
             if (!empty($itemIds)) {
                 $ph = implode(',', array_fill(0, count($itemIds), '?'));
                 $propRows = $conn->fetchAllAssociative(
@@ -1162,6 +1184,18 @@ class ImportFromDumpJob extends AbstractJob
                     LEFT JOIN property p ON p.id = val.property_id
                     LEFT JOIN vocabulary v ON v.id = p.vocabulary_id
                     WHERE val.resource_id IN ($ph)
+                    GROUP BY p.id
+                    ORDER BY v.prefix, p.local_name",
+                    $itemIds
+                );
+                $mediaPropRows = $conn->fetchAllAssociative(
+                    "SELECT v.prefix, p.local_name, COUNT(val.id) AS cnt
+                    FROM value val
+                    LEFT JOIN property p ON p.id = val.property_id
+                    LEFT JOIN vocabulary v ON v.id = p.vocabulary_id
+                    WHERE val.resource_id IN (
+                        SELECT id FROM media WHERE item_id IN ($ph)
+                    )
                     GROUP BY p.id
                     ORDER BY v.prefix, p.local_name",
                     $itemIds
@@ -1177,8 +1211,15 @@ class ImportFromDumpJob extends AbstractJob
             ));
 
             if ($propRows) {
-                $logger->info('[Omeka S] Properties used:');
+                $logger->info('[Omeka S] Item properties used:');
                 foreach ($propRows as $row) {
+                    $logger->info(sprintf('  %s:%s (%d)', $row['prefix'], $row['local_name'], $row['cnt']));
+                }
+            }
+
+            if ($mediaPropRows) {
+                $logger->info('[Omeka S] Media properties used:');
+                foreach ($mediaPropRows as $row) {
                     $logger->info(sprintf('  %s:%s (%d)', $row['prefix'], $row['local_name'], $row['cnt']));
                 }
             }
