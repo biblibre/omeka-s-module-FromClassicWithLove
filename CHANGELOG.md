@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Fix OCR values to be set on original resource type
 Show metas from medias/files stats during import
+Fix item sets tree import with ItemSetsTree 0.8.0 (duplicate edges on new imports, root item sets lost on updates)
 
 ## [0.3.0] - 2026-06-03
 

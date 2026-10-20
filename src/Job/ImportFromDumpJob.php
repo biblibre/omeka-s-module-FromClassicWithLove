@@ -295,7 +295,8 @@ class ImportFromDumpJob extends AbstractJob
 
     protected function importCollectionsTreeFromDump($dumpManager)
     {
-        $logger = $this->getServiceLocator()->get('Omeka\Logger');
+        $api = $this->getServiceLocator()->get('Omeka\ApiManager');
+        $entityManager = $this->getServiceLocator()->get('Omeka\EntityManager');
         $p = $dumpManager->getTablePrefix();
         $dumpConn = $dumpManager->getConn();
 
@@ -309,65 +310,54 @@ class ImportFromDumpJob extends AbstractJob
         $stmt = $dumpConn->executeQuery($sql);
         $itemSets = $stmt->fetchAllAssociative();
 
-        // If we're updating from a previous import,
-        // we must delete every item sets tree branch before to reset it from scratch.
-        // This is to avoid bugs and impossible trees.
-        if ($this->getArg('update') == '1') {
-            foreach ($itemSets as $itemSet) {
-                $matchingResource = $this->getServiceLocator()->get('Omeka\ApiManager')->search('fromclassicwithlove_resource_maps',
-                [
-                    'mapped_resource_name' => 'item_set',
-                    'classic_resource_id' => $itemSet['id'],
-                    'job_id' => $this->updatedJobId,
-                ]
-                )->getContent();
-
-                if (!empty($matchingResource)) {
-                    $treeEdges = $this->getServiceLocator()->get('Omeka\ApiManager')->search('item_sets_tree_edges',
-                    ['item_set_id' => $matchingResource[0]->resource()->id()])->getContent();
-
-                    if (!empty($treeEdges)) {
-                        foreach ($treeEdges as $treeEdge) {
-                            $this->getServiceLocator()->get('Omeka\ApiManager')->delete('item_sets_tree_edges', $treeEdge->id());
-                        }
-                    }
-                }
-            }
-        }
+        $jobId = ($this->getArg('update') == '1') ? $this->updatedJobId : $this->job->getId();
 
         foreach ($itemSets as $itemSet) {
-            if (!$itemSet['parent_collection_id']) {
+            $childItemSetId = $this->getMappedItemSetId($itemSet['id'], $jobId);
+            if (!$childItemSetId) {
                 continue;
             }
 
-            $matchingResource = $this->getServiceLocator()->get('Omeka\ApiManager')->search('fromclassicwithlove_resource_maps',
-            [
-                'mapped_resource_name' => 'item_set',
-                'classic_resource_id' => $itemSet['id'],
-                'job_id' => ($this->getArg('update') == '1') ? $this->updatedJobId : $this->job->getId(),
-            ]
-            )->getContent();
+            $parentItemSet = null;
+            if ($itemSet['parent_collection_id']) {
+                $parentItemSetId = $this->getMappedItemSetId($itemSet['parent_collection_id'], $jobId);
+                if ($parentItemSetId) {
+                    $parentItemSet = $entityManager->find('Omeka\Entity\ItemSet', $parentItemSetId);
+                }
+            }
 
-            $matchingTargetResource = $this->getServiceLocator()->get('Omeka\ApiManager')->search('fromclassicwithlove_resource_maps',
-            [
-                'mapped_resource_name' => 'item_set',
-                'classic_resource_id' => $itemSet['parent_collection_id'],
-                'job_id' => ($this->getArg('update') == '1') ? $this->updatedJobId : $this->job->getId(),
-            ]
-            )->getContent();
+            $edgeData = [
+                'o:item_set' => $entityManager->find('Omeka\Entity\ItemSet', $childItemSetId),
+                'o:parent_item_set' => $parentItemSet,
+            ];
 
-            if (!empty($matchingResource) && !empty($matchingTargetResource)) {
-                $entityManager = $this->getServiceLocator()->get('Omeka\EntityManager');
+            // Since ItemSetsTree 0.8.0, an edge is created for every new item set,
+            // so update it instead of creating a duplicate. Resetting the parent
+            // to null on update also removes branches that no longer exist.
+            $treeEdges = $api->search('item_sets_tree_edges', ['item_set_id' => $childItemSetId])->getContent();
+            if (!empty($treeEdges)) {
+                $api->update('item_sets_tree_edges', $treeEdges[0]->id(), $edgeData);
+            } else {
+                $api->create('item_sets_tree_edges', $edgeData);
+            }
 
-                $parentItemSet = $entityManager->find('Omeka\Entity\ItemSet', $matchingTargetResource[0]->resource()->id());
-                $childItemSet = $entityManager->find('Omeka\Entity\ItemSet', $matchingResource[0]->resource()->id());
-
-                $this->getServiceLocator()->get('Omeka\ApiManager')->create('item_sets_tree_edges',
-                ['o:item_set' => $childItemSet, 'o:parent_item_set' => $parentItemSet]);
-
+            if ($parentItemSet) {
                 $this->stats['item_sets_tree_edges'] = ($this->stats['item_sets_tree_edges'] ?? 0) + 1;
             }
         }
+    }
+
+    protected function getMappedItemSetId($classicItemSetId, $jobId): ?int
+    {
+        $resourceMaps = $this->getServiceLocator()->get('Omeka\ApiManager')->search('fromclassicwithlove_resource_maps',
+            [
+                'mapped_resource_name' => 'item_set',
+                'classic_resource_id' => $classicItemSetId,
+                'job_id' => $jobId,
+            ]
+        )->getContent();
+
+        return !empty($resourceMaps) ? $resourceMaps[0]->resource()->id() : null;
     }
 
     protected function importUrisFromDump()
